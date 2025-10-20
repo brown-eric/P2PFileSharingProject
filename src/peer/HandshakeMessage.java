@@ -17,28 +17,20 @@ public class HandshakeMessage {
         return peerId;
     }
 
-    // Build handshake message as byte array
     public byte[] toBytes() {
         ByteBuffer buffer = ByteBuffer.allocate(HANDSHAKE_LENGTH);
-
-        // Header: 18 bytes
         buffer.put(HEADER.getBytes(StandardCharsets.US_ASCII));
-
-        // Zero bits: 10 bytes
         buffer.put(new byte[10]);
-
-        // Peer ID: 4 bytes (big-endian)
         buffer.putInt(peerId);
-
         return buffer.array();
     }
 
-    // Parse handshake from incoming bytes
     public static HandshakeMessage fromBytes(byte[] data) {
-        if (data.length != HANDSHAKE_LENGTH) throw new IllegalArgumentException("Invalid handshake length.");
+        if (data.length != HANDSHAKE_LENGTH)
+            throw new IllegalArgumentException("Invalid handshake length.");
         String header = new String(data, 0, 18, StandardCharsets.US_ASCII);
-        if (!HEADER.equals(header)) throw new IllegalArgumentException("Invalid handshake header.");
-        // skip 10 bytes (18-27)
+        if (!HEADER.equals(header))
+            throw new IllegalArgumentException("Invalid handshake header.");
         ByteBuffer buffer = ByteBuffer.wrap(data, 28, 4);
         int peerId = buffer.getInt();
         return new HandshakeMessage(peerId);
