@@ -8,7 +8,8 @@ This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing pr
 
 - [Project Overview](#project-overview)
 - [How to Build and Run](#how-to-build-and-run)
-- [How the Protocol Works (So Far)](#how-the-protocol-works-so-far)
+- [How the Protocol Works (So Far)](#how-it-works)
+- [TODO / Future Improvements](#todo)
 - [Team](#team)
 
 ---
@@ -17,7 +18,17 @@ This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing pr
 
 - **Language:** Java 17+
 - **Goal:** Simulate a BitTorrent-like P2P file sharing system.
-- **Current Status:** Handshake and bitfield message exchange between two peers is working.
+
+---
+
+## Features
+
+- Handshake and bitfield exchange for initial peer connection
+- Interest and not-interested messaging based on file piece possession
+- Choking and unchoking (preferred and optimistic neighbor selection)
+- Piece request and piece message protocol for segmented file downloads
+- Automatic piece requesting and storage until full file acquisition
+- Basic console logging of protocol events (connections, requests, transfers)
 
 ---
 
@@ -31,39 +42,40 @@ Open a terminal in the project root and run:
 
 This compiles all Java files in `src/peer/` and puts the `.class` files in the `out/` directory.
 
----
+## Running Peers
 
-### 2. **Run Two Peers (Handshake + Bitfield Demo)**
+Each peer runs in its own terminal window. The format is:
+`java -cp out peer.PeerProcess <peerId> <port> <comma-separated-peer-IDs>`
 
-Open two terminals. In the first terminal, start the server peer:
+**Example for 3 peers:**
 
-`java -cp out peer.PeerProcess server 1001 6008`
+Terminal 1:
+`java -cp out peer.PeerProcess 1001 6008 1001,1002,1003`
 
-In the second terminal, start the client peer:
+Terminal 2:
+`java -cp out peer.PeerProcess 1002 6009 1001,1002,1003`
 
-`java -cp out peer.PeerProcess client 1002 6008`
-
-**Expected Output:**
-
-- Both peers will print:
-    - Confirmation of connection
-    - The peer ID of the other side
-    - Confirmation that a bitfield message was sent and received
-
-Example: <br>
-Listening as peer 1001 on port 6008 <br>
-Connected to peer with ID: 1002 <br>
-Sent bitfield message. <br>
-Received bitfield message with length: 2
-
+Terminal 3:
+`java -cp out peer.PeerProcess 1003 6010 1001,1002,1003`
 
 ---
 
-## How the Protocol Works (So Far)
+## How it Works
 
-- **Handshake:** Each peer sends a 32-byte handshake message on connect.
-- **Bitfield:** After handshake, each peer sends a bitfield message indicating which pieces of the file it has.
-- **Peer State:** Each peer tracks which pieces it owns (currently hardcoded for demo).
+- Peer 1001 starts with the full file, others with none. Peers connect and exchange bitfields.
+- Each peer requests missing pieces from unchoked connections.
+- When a piece is received, it is stored and the next missing piece is requested.
+- UploadManager periodically updates preferred (based on download rate) and optimistic neighbors, sending choke/unchoke messages accordingly.
+- Console logs show all protocol events and piece transfers.
+
+---
+
+## TODO
+
+- Implement 'have' message for new piece propagation
+- Support more advanced choke/unchoke logic and peer preference
+- Piece verification and file assembly (write to disk)
+- Persistent logging and error handling improvements
 
 ---
 
@@ -78,4 +90,4 @@ Received bitfield message with length: 2
 ## Notes
 
 - All code is in the `src/peer/` directory.
-- Config files are in the `config/` directory (not yet used in this demo)
+- Config files are in the `config/` directory (not yet being used)
