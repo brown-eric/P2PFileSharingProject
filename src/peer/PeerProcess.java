@@ -79,9 +79,13 @@ public class PeerProcess {
         }
 
         // Example: initialize PeerState, all pieces missing except peer 1001
-        int numPieces = 16;
+        // Using hard coded values to test
+        int numPieces = 1483;
         boolean hasFullFile = (peerId == 1001); // ONLY 1001 starts with all pieces
-        PeerState peerState = new PeerState(numPieces, hasFullFile);
+        int pieceSize = 16384;
+        String fileName = "tree.jpg";
+
+        PeerState peerState = new PeerState(numPieces, hasFullFile, peerId, pieceSize, fileName);
 
         PeerProcess peerProcess = new PeerProcess(peerId, port, knownPeers, peerState);
         try {
