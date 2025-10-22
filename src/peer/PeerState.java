@@ -28,7 +28,6 @@ public class PeerState {
     }
 
     // Return the data for a piece index
-    // TODO: still some bugs when requesting necessary pieces especially towards the end of the file
     public byte[] getPieceData(int pieceIndex) {
         try (RandomAccessFile raf = new RandomAccessFile("peer_" + peerId + "/" + fileName, "r")) {
             long offset = (long) pieceIndex * pieceSize;
@@ -46,7 +45,7 @@ public class PeerState {
     }
 
     // Store a received piece as soon as it is received
-    public synchronized void storePiece(int pieceIndex, byte[] data) {
+    public void storePiece(int pieceIndex, byte[] data) {
         pieces[pieceIndex] = true;
         File dir = new File("peer_" + peerId);
         if (!dir.exists()) dir.mkdirs();
