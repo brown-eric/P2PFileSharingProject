@@ -12,7 +12,8 @@ public class ConnectionHandler implements Runnable {
     private int remotePeerId = -1;
     private PeerState peerState;
     private UploadManager uploadManager;
-    private byte[] remoteBitfield = null; // Store remote bitfield globally
+    private byte[] remoteBitfield = null;
+    private boolean completionChecked = false;
 
     public ConnectionHandler(Socket socket, int selfPeerId, PeerState peerState, UploadManager uploadManager) {
         this.socket = socket;
@@ -25,7 +26,7 @@ public class ConnectionHandler implements Runnable {
         int bytesRead = 0;
         while (bytesRead < buffer.length) {
             int r = is.read(buffer, bytesRead, buffer.length - bytesRead);
-            if (r == -1) return -1; // End of stream
+            if (r == -1) return -1;
             bytesRead += r;
         }
         return bytesRead;
@@ -34,8 +35,7 @@ public class ConnectionHandler implements Runnable {
     @Override
     public void run() {
         try (InputStream is = socket.getInputStream(); OutputStream os = socket.getOutputStream()) {
-
-            // 1. Handshake
+            // Handshake
             byte[] hsBytes = new HandshakeMessage(selfPeerId).toBytes();
             os.write(hsBytes);
             os.flush();
@@ -45,9 +45,9 @@ public class ConnectionHandler implements Runnable {
                 throw new Exception("Failed handshake length");
             HandshakeMessage hsIn = HandshakeMessage.fromBytes(hsBuf);
             remotePeerId = hsIn.getPeerId();
-            System.out.println("Connected to peer " + remotePeerId);
+            System.out.println("[Peer " + selfPeerId + "] Connected to peer " + remotePeerId);
 
-            // 2. Exchange bitfield
+            // Exchange bitfield
             byte[] myBitfield = peerState.getBitfieldBytes();
             os.write(new BitfieldMessage(myBitfield).toBytes());
             os.flush();
@@ -63,35 +63,16 @@ public class ConnectionHandler implements Runnable {
             byte[] payload = new byte[len - 1];
             if (readFully(is, payload) != payload.length) throw new Exception("Failed to read bitfield payload");
             BitfieldMessage remoteBitfieldMsg = BitfieldMessage.fromBytes(payload);
-            System.out.println("Received bitfield of length " + payload.length);
 
-            // Store the remote bitfield for use later
             remoteBitfield = remoteBitfieldMsg.getBitfield();
 
-            // 3. Interest determination
-            boolean interested = false;
-            boolean[] havePieces = peerState.getPieces();
-            for (int i = 0; i < havePieces.length; i++) {
-                boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
-                if (!havePieces[i] && remoteHas) {
-                    interested = true;
-                    break;
-                }
-            }
+            // Initial interest determination
+            updateInterest(os);
 
-            if (interested) {
-                os.write(new InterestedMessage().toBytes());
-                System.out.println("Sent Interested");
-            } else {
-                os.write(new NotInterestedMessage().toBytes());
-                System.out.println("Sent Not Interested");
-            }
-            os.flush();
-
-            // Notify UploadManager about connected peer to track choking state
+            // Notify uploadManager
             uploadManager.addPeer(remotePeerId, os);
 
-            // 4. Main message loop
+            // Main message loop
             while (true) {
                 if (readFully(is, lenBuf) != 4) break;
                 int msgLen = ByteBuffer.wrap(lenBuf).getInt();
@@ -104,84 +85,132 @@ public class ConnectionHandler implements Runnable {
                     if (readFully(is, payload) != payload.length) break;
                 }
 
-                // Only declare myPieces once up here
                 boolean[] myPieces = peerState.getPieces();
 
                 switch (msgType) {
                     case ChokeMessage.TYPE:
-                        System.out.println("Received Choke from " + remotePeerId);
                         uploadManager.setChoked(remotePeerId, true);
                         break;
+
                     case UnchokeMessage.TYPE:
-                        System.out.println("Received Unchoke from " + remotePeerId);
                         uploadManager.setChoked(remotePeerId, false);
 
-                        // Request next missing piece from remote
-                        for (int i = 0; i < myPieces.length; i++) {
-                            boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
-                            if (!myPieces[i] && remoteHas) {
-                                os.write(new RequestMessage(i).toBytes());
-                                os.flush();
-                                System.out.println("Requested piece " + i + " from peer " + remotePeerId);
-                                break;
+                        if (!completionChecked) {
+                            boolean[] myPieces2 = peerState.getPieces();
+                            for (int i = 0; i < myPieces2.length; i++) {
+                                boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
+                                if (!myPieces2[i] && remoteHas) {
+                                    os.write(new RequestMessage(i).toBytes());
+                                    os.flush();
+                                    break;
+                                }
                             }
                         }
                         break;
 
                     case InterestedMessage.TYPE:
-                        System.out.println("Peer " + remotePeerId + " is interested.");
                         uploadManager.setInterested(remotePeerId, true);
                         break;
                     case NotInterestedMessage.TYPE:
-                        System.out.println("Peer " + remotePeerId + " is not interested.");
                         uploadManager.setInterested(remotePeerId, false);
                         break;
                     case RequestMessage.TYPE:
-                        if (uploadManager.isChoked(remotePeerId)) {
-                            System.out.println("Ignoring request from choked peer " + remotePeerId);
-                        } else {
+                        if (!uploadManager.isChoked(remotePeerId)) {
                             RequestMessage req = RequestMessage.fromBytes(payload);
-                            System.out.println("Peer " + remotePeerId + " requested piece " + req.getPieceIndex());
-
                             byte[] block = peerState.getPieceData(req.getPieceIndex());
-                            if (block == null) {
-                                System.out.println("Requested piece data not available: " + req.getPieceIndex());
-                                break;
+                            if (block != null) {
+                                os.write(new PieceMessage(req.getPieceIndex(), block).toBytes());
+                                os.flush();
                             }
-                            os.write(new PieceMessage(req.getPieceIndex(), block).toBytes());
-                            os.flush();
-                            System.out.println("Sent piece " + req.getPieceIndex() + " to peer " + remotePeerId);
                         }
                         break;
                     case PieceMessage.TYPE:
                         PieceMessage pieceMsg = PieceMessage.fromBytes(payload);
-                        System.out.println("Received piece " + pieceMsg.getPieceIndex() + " from " + remotePeerId);
                         peerState.storePiece(pieceMsg.getPieceIndex(), pieceMsg.getBlock());
+                        uploadManager.broadcastHave(pieceMsg.getPieceIndex());
 
-                        // Immediately request next missing piece from same peer
-                        for (int i = 0; i < myPieces.length; i++) {
-                            boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
-                            if (!myPieces[i] && remoteHas) {
-                                os.write(new RequestMessage(i).toBytes());
+                        boolean complete1 = peerState.isComplete();
+
+                        if (complete1 && !completionChecked) {
+                            try {
+                                completionChecked = true;
+                                os.write(new NotInterestedMessage().toBytes());
                                 os.flush();
-                                System.out.println("Requested piece " + i + " from peer " + remotePeerId);
-                                break;
+
+                                if (peerState.verifyFileHash()) {
+                                    System.out.println("[Peer " + selfPeerId + "] File integrity verified.");
+                                } else {
+                                    System.out.println("[Peer " + selfPeerId + "] File integrity verification failed!");
+                                }
+
+                                uploadManager.updatePeerCompletion(selfPeerId, true);
+                            } catch (Exception e) {
+                                System.err.println("[Peer " + selfPeerId + "] Exception during completion: " + e.getMessage());
+                                e.printStackTrace();
+                            }
+                        } else if (!complete1) {
+                            boolean[] myPieces1 = peerState.getPieces();
+                            for (int i = 0; i < myPieces1.length; i++) {
+                                boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
+                                if (!myPieces1[i] && remoteHas) {
+                                    os.write(new RequestMessage(i).toBytes());
+                                    os.flush();
+                                    break;
+                                }
                             }
                         }
                         break;
 
+                    case HaveMessage.TYPE:
+                        HaveMessage recvHave = HaveMessage.fromBytes(payload);
+                        int haveIndex = recvHave.getPieceIndex();
+
+                        if (remoteBitfield == null) {
+                            remoteBitfield = new byte[(peerState.getPieces().length + 7) / 8];
+                        }
+                        int byteIndex = haveIndex / 8;
+                        int bitIndex = 7 - (haveIndex % 8);
+                        remoteBitfield[byteIndex] |= (1 << bitIndex);
+
+                        updateInterest(os);
+                        break;
                     default:
-                        System.out.println("Unknown message type: " + msgType);
                         break;
                 }
             }
         } catch (Exception e) {
+            System.err.println("[Peer " + selfPeerId + "] Exception: " + e.getMessage());
             e.printStackTrace();
         } finally {
             try {
                 socket.close();
             } catch (Exception ignore) {
             }
+        }
+    }
+
+    private void updateInterest(OutputStream os) throws Exception {
+        boolean complete = peerState.isComplete();
+        if (complete) {
+            os.write(new NotInterestedMessage().toBytes());
+            os.flush();
+            return;
+        }
+        boolean[] havePieces = peerState.getPieces();
+        boolean interested = false;
+        for (int i = 0; i < havePieces.length; i++) {
+            boolean remoteHas = ((remoteBitfield[i / 8] >> (7 - (i % 8))) & 1) == 1;
+            if (!havePieces[i] && remoteHas) {
+                interested = true;
+                break;
+            }
+        }
+        if (interested) {
+            os.write(new InterestedMessage().toBytes());
+            os.flush();
+        } else {
+            os.write(new NotInterestedMessage().toBytes());
+            os.flush();
         }
     }
 }

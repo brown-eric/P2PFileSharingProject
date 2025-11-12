@@ -1,5 +1,6 @@
 package peer;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -79,11 +80,12 @@ public class PeerProcess {
         }
 
         // Example: initialize PeerState, all pieces missing except peer 1001
-        // Using hard coded values to test
-        int numPieces = 1483;
+        // Using hard coded values to test -> changed now
         boolean hasFullFile = (peerId == 1001); // ONLY 1001 starts with all pieces
         int pieceSize = 16384;
-        String fileName = "tree.jpg";
+        String fileName = "thefile";
+        long fileBytes = new File("peer_1001/thefile").length();
+        int numPieces = (int) Math.ceil((double) fileBytes / pieceSize);
 
         PeerState peerState = new PeerState(numPieces, hasFullFile, peerId, pieceSize, fileName);
 

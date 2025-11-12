@@ -4,12 +4,15 @@ import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 public class UploadManager implements Runnable {
 
-    private static final int PREFERRED_NEIGHBORS_COUNT = 2;
+    private static final int PREFERRED_NEIGHBORS_COUNT = 4; // arbitrarily set to 4
     private static final int UNCHOKE_INTERVAL_MS = 5000;
     private static final int OPTIMISTIC_UNCHOKE_INTERVAL_MS = 15000;
+    private Map<Integer, Boolean> peerCompletionMap = new ConcurrentHashMap<>();
 
     private Map<Integer, Long> downloadRates = new HashMap<>();
     private Set<Integer> preferredNeighbors = new HashSet<>();
@@ -26,6 +29,7 @@ public class UploadManager implements Runnable {
             chokeStatus.put(peerId, true);
             interestedStatus.put(peerId, false);
             downloadRates.put(peerId, 0L);
+            peerCompletionMap.put(peerId, false);
         }
     }
 
@@ -78,7 +82,12 @@ public class UploadManager implements Runnable {
     private void updatePreferredNeighbors() {
         List<Map.Entry<Integer, Long>> sorted = new ArrayList<>();
         synchronized (lock) {
-            sorted.addAll(downloadRates.entrySet());
+            // Only consider peers that are interested for preferred neighbor
+            for (Map.Entry<Integer, Long> entry : downloadRates.entrySet()) {
+                if (interestedStatus.getOrDefault(entry.getKey(), false)) {
+                    sorted.add(entry);
+                }
+            }
         }
         sorted.sort((a, b) -> Long.compare(b.getValue(), a.getValue()));
 
@@ -117,11 +126,12 @@ public class UploadManager implements Runnable {
         }
     }
 
+
     private void updateOptimisticUnchoke() {
         List<Integer> candidates = new ArrayList<>();
         synchronized (lock) {
             for (Integer peerId : peerOutputs.keySet()) {
-                if (!preferredNeighbors.contains(peerId)) {
+                if (!preferredNeighbors.contains(peerId) && interestedStatus.getOrDefault(peerId, false)) {
                     candidates.add(peerId);
                 }
             }
@@ -131,4 +141,34 @@ public class UploadManager implements Runnable {
             System.out.println("Optimistically unchoking peer " + optimisticNeighbor);
         }
     }
+
+    public void broadcastHave(int pieceIndex) {
+        byte[] msgBytes = new HaveMessage(pieceIndex).toBytes();
+        synchronized (lock) {
+            for (OutputStream os : peerOutputs.values()) {
+                try {
+                    os.write(msgBytes);
+                    os.flush();
+                } catch (Exception e) {
+                    System.out.println("Failed to send HAVE message: " + e);
+                }
+            }
+        }
+    }
+
+    // called when a peer has the complete file
+    public synchronized void updatePeerCompletion(int peerId, boolean isComplete) {
+        peerCompletionMap.put(peerId, isComplete);
+        System.out.println("Updated completion status for peer " + peerId + ": " + isComplete);
+        System.out.println("Current peerCompletionMap contents:");
+        peerCompletionMap.forEach((id, complete) -> System.out.println("Peer " + id + ": " + complete));
+        if (!peerCompletionMap.containsValue(false) && !peerCompletionMap.isEmpty()) {
+            System.out.println("All peers have downloaded the full file. Terminating...");
+            System.exit(0);
+        }
+    }
+
+
+
+
 }
