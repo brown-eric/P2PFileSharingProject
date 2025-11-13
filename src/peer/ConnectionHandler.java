@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 public class ConnectionHandler implements Runnable {
 
@@ -71,6 +72,13 @@ public class ConnectionHandler implements Runnable {
 
             // Notify uploadManager
             uploadManager.addPeer(remotePeerId, os);
+            if (peerState.isComplete()) {
+                // Telling other peers if it's already complete
+                os.write(new PeerCompletedMessage(selfPeerId).toBytes());
+                os.flush();
+                System.out.println("[Peer " + selfPeerId + "] Informed peer " + remotePeerId + " of seeder status.");
+            }
+
 
             // Main message loop
             while (true) {
@@ -143,7 +151,15 @@ public class ConnectionHandler implements Runnable {
                                     System.out.println("[Peer " + selfPeerId + "] File integrity verification failed!");
                                 }
 
+                                // uploadManager.updatePeerCompletion(selfPeerId, true);
+                                System.out.println("[Peer " + selfPeerId + "] Marking self complete and broadcasting...");
                                 uploadManager.updatePeerCompletion(selfPeerId, true);
+                                uploadManager.broadcastPeerCompleted(selfPeerId);
+                                // System.out.println("[Peer " + selfPeerId + "] Peer completion map: " + uploadManager.getPeerCompletionMap());
+                                try {
+                                    Thread.sleep(1000); // 1 second
+                                } catch (InterruptedException ignore) {}
+
                             } catch (Exception e) {
                                 System.err.println("[Peer " + selfPeerId + "] Exception during completion: " + e.getMessage());
                                 e.printStackTrace();
@@ -176,11 +192,26 @@ public class ConnectionHandler implements Runnable {
                         break;
                     default:
                         break;
+
+                    case PeerCompletedMessage.TYPE:
+                        PeerCompletedMessage pcm = PeerCompletedMessage.fromBytes(payload);
+                        int completedPeerId = pcm.getPeerId();
+                        System.out.println("[Peer " + selfPeerId + "] Received PeerCompletedMessage: " + completedPeerId);
+                        // System.out.println("[Peer " + selfPeerId + "] Peer completion map BEFORE: " + uploadManager.getPeerCompletionMap());
+                        uploadManager.updatePeerCompletion(completedPeerId, true);
+                        // System.out.println("[Peer " + selfPeerId + "] Peer completion map AFTER: " + uploadManager.getPeerCompletionMap());
+                        break;
+
                 }
             }
-        } catch (Exception e) {
-            System.err.println("[Peer " + selfPeerId + "] Exception: " + e.getMessage());
-            e.printStackTrace();
+        }
+        catch (Exception e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            // Only print unexpected errors, ignore normal socket closure/reset
+            if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
+                System.err.println("[Peer " + selfPeerId + "] Exception: " + msg);
+                e.printStackTrace();
+            }
         } finally {
             try {
                 socket.close();

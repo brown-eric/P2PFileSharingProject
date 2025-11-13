@@ -65,6 +65,17 @@ public class PeerProcess {
         }
     }
 
+
+    public void announceIfSeeder() {
+        if (peerState.isComplete()) {
+            uploadManager.updatePeerCompletion(peerId, true);
+            //uploadManager.broadcastPeerCompleted(peerId);
+            System.out.println("[Peer " + peerId + "] Started with complete file; will announce on connections.");
+        }
+    }
+
+
+
     public static void main(String[] args) {
         if (args.length < 3) {
             System.out.println("Usage: java peer.PeerProcess <peerId> <port> <commaSeparatedKnownPeers>");
@@ -80,7 +91,7 @@ public class PeerProcess {
         }
 
         // Example: initialize PeerState, all pieces missing except peer 1001
-        // Using hard coded values to test -> changed now
+        // Using hard coded values to test
         boolean hasFullFile = (peerId == 1001); // ONLY 1001 starts with all pieces
         int pieceSize = 16384;
         String fileName = "thefile";
@@ -90,6 +101,7 @@ public class PeerProcess {
         PeerState peerState = new PeerState(numPieces, hasFullFile, peerId, pieceSize, fileName);
 
         PeerProcess peerProcess = new PeerProcess(peerId, port, knownPeers, peerState);
+        peerProcess.announceIfSeeder();
         try {
             peerProcess.start();
         } catch (IOException e) {

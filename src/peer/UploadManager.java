@@ -5,22 +5,21 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 public class UploadManager implements Runnable {
 
-    private static final int PREFERRED_NEIGHBORS_COUNT = 4; // arbitrarily set to 4
+    private static final int PREFERRED_NEIGHBORS_COUNT = 4;
     private static final int UNCHOKE_INTERVAL_MS = 5000;
     private static final int OPTIMISTIC_UNCHOKE_INTERVAL_MS = 15000;
     private Map<Integer, Boolean> peerCompletionMap = new ConcurrentHashMap<>();
-
     private Map<Integer, Long> downloadRates = new HashMap<>();
     private Set<Integer> preferredNeighbors = new HashSet<>();
     private Integer optimisticNeighbor = null;
-
     private Map<Integer, Boolean> chokeStatus = new HashMap<>();
     private Map<Integer, Boolean> interestedStatus = new HashMap<>();
     private Map<Integer, OutputStream> peerOutputs = new HashMap<>();
+    private volatile boolean shutdown = false;
+
 
     private final Object lock = new Object();
 
@@ -73,11 +72,27 @@ public class UploadManager implements Runnable {
                 updatePreferredNeighbors();
                 updateOptimisticUnchoke();
                 Thread.sleep(UNCHOKE_INTERVAL_MS);
+
+                // Check if all peers are complete
+                synchronized (this) {
+                    if (shutdown) {
+                        break;
+                    }
+                }
             }
         } catch (InterruptedException e) {
-            // Thread interrupted, exit gracefully
+            // exit here
         }
+
+        // Close all output streams
+        for (OutputStream os : peerOutputs.values()) {
+            try {
+                os.close();
+            } catch (Exception ignore) {}
+        }
+        System.exit(0);
     }
+
 
     private void updatePreferredNeighbors() {
         List<Map.Entry<Integer, Long>> sorted = new ArrayList<>();
@@ -119,13 +134,15 @@ public class UploadManager implements Runnable {
                         }
                     }
                 } catch (Exception e) {
-                    System.out.println("Failed to send choke/unchoke to peer " + peerId + ": " + e);
+                    String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
+                        System.out.println("Failed to send choke/unchoke to peer " + peerId + ": " + msg);
+                    }
                 }
             }
             preferredNeighbors = newPreferred;
         }
     }
-
 
     private void updateOptimisticUnchoke() {
         List<Integer> candidates = new ArrayList<>();
@@ -150,25 +167,57 @@ public class UploadManager implements Runnable {
                     os.write(msgBytes);
                     os.flush();
                 } catch (Exception e) {
-                    System.out.println("Failed to send HAVE message: " + e);
+                    String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
+                        System.out.println("Failed to send HAVE message: " + msg);
+                    }
                 }
             }
         }
     }
 
     // called when a peer has the complete file
-    public synchronized void updatePeerCompletion(int peerId, boolean isComplete) {
-        peerCompletionMap.put(peerId, isComplete);
-        System.out.println("Updated completion status for peer " + peerId + ": " + isComplete);
-        System.out.println("Current peerCompletionMap contents:");
-        peerCompletionMap.forEach((id, complete) -> System.out.println("Peer " + id + ": " + complete));
-        if (!peerCompletionMap.containsValue(false) && !peerCompletionMap.isEmpty()) {
-            System.out.println("All peers have downloaded the full file. Terminating...");
-            System.exit(0);
+    public void updatePeerCompletion(int peerId, boolean completed) {
+        peerCompletionMap.put(peerId, completed);
+        // System.out.println("[UploadManager] updatePeerCompletion called for: " + peerId + " = " + completed);
+        // System.out.println("[UploadManager] peerCompletionMap: " + peerCompletionMap);
+
+        boolean allComplete = true;
+        for (boolean b : peerCompletionMap.values()) {
+            if (!b) {
+                allComplete = false;
+                break;
+            }
+        }
+        if (allComplete) {
+            System.out.println("All peers completed. Shutting down.");
+            shutdown = true;
+            synchronized (this) {
+                notifyAll(); // Wake up any waiting threads
+            }
         }
     }
 
 
+    public void broadcastPeerCompleted(int peerId) {
+        byte[] msgBytes = new PeerCompletedMessage(peerId).toBytes();
+        synchronized (lock) {
+            for (OutputStream os : peerOutputs.values()) {
+                try {
+                    os.write(msgBytes);
+                    os.flush();
+                } catch (Exception e) {
+                    String msg = e.getMessage() != null ? e.getMessage() : "";
+                    if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
 
+    public Map<Integer, Boolean> getPeerCompletionMap() {
+        return Collections.unmodifiableMap(peerCompletionMap);
+    }
 
 }
