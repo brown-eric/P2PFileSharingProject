@@ -1,12 +1,15 @@
 # CNT4007 P2P File Sharing Project
 
-This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing protocol in Java. Each peer can connect to others, exchange handshake and bitfield messages, and will soon support the full protocol for file piece exchange.
+This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing protocol in Java. Each peer can connect to others, exchange handshake and bitfield messages, and supports the full protocol for file piece exchange and complete BitTorrent-like behavior.
+
+
 
 ---
 
 ## Table of Contents
 
 - [Project Overview](#project-overview)
+- [Features](#features)
 - [How to Build and Run](#how-to-build-and-run)
 - [How the Protocol Works (So Far)](#how-it-works)
 - [TODO / Future Improvements](#todo)
@@ -23,18 +26,20 @@ This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing pr
 
 ## Features
 
-- Handshake and bitfield exchange for initial peer connection
+- Handshake and bitfield exchange for initial peer connection abd file discovery
 - Interest and not-interested messaging based on file piece possession
-- Choking and unchoking (preferred and optimistic neighbor selection)
+- Choking and unchoking with periodic preferred neighbor and optimistic unchoke selection parameters from config
 - Piece request and piece message protocol for segmented file downloads
-- Automatic piece requesting and storage until full file acquisition
-- Basic console logging of protocol events (connections, requests, transfers)
+- Automatic random piece requesting and storage until full file acquisition
+- Completion propagation and process shutdown when all peers are complete
+- Each peer logs required protocol events: connects, choke/unchoke, interests, piece downloads, completions, and all message types
+- Peer directories are managed for file input/output
 
 ---
 
 ## How to Build and Run
 
-### 1. **Compile the Project**
+### **Compile the Project**
 
 Open a terminal in the project root and run:
 
@@ -42,7 +47,16 @@ Open a terminal in the project root and run:
 
 This compiles all Java files in `src/peer/` and puts the `.class` files in the `out/` directory.
 
-## Running Peers
+[//]: # (###  **Required Config Files**)
+
+[//]: # ()
+[//]: # (- `Common.cfg` — Specifies global parameters &#40;# preferred neighbors, time intervals, file name, file size, piece size&#41;)
+
+[//]: # (- `PeerInfo.cfg` — Specifies each peer's ID, host, port, and whether it starts with the file)
+
+
+
+### Running Peers
 
 Each peer runs in its own terminal window. The format is:
 `java -cp out peer.PeerProcess <peerId> <port> <comma-separated-peer-IDs>`
@@ -63,19 +77,18 @@ Terminal 3:
 ## How it Works
 
 - Peer 1001 starts with the full file, others with none. Peers connect and exchange bitfields.
-- Each peer requests missing pieces from unchoked connections.
 - When a piece is received, it is stored and the next missing piece is requested.
-- UploadManager periodically updates preferred (based on download rate) and optimistic neighbors, sending choke/unchoke messages accordingly.
-- Console logs show all protocol events and piece transfers.
+- Peers request missing pieces, receive and store pieces, send HAVE messages for new pieces, and write pieces to disk.
+- Completion status is propagated; when all peers are complete, all processes shut down.
 
 ---
 
 ## TODO
 
-- Implement 'have' message for new piece propagation
-- Support more advanced choke/unchoke logic and peer preference
-- Piece verification and file assembly (write to disk)
-- Persistent logging and error handling improvements
+- Implement logging mechanics for all events: connection made/received, preferred neighbor changes, optimistic unchoke updates, choke/unchoke, HAVE/interested/not interested/PIECE messages, completion.
+- Include timestamps on logs mentioned above.
+- Thorough testing for larger files.
+- Read project description docs for anything else.
 
 ---
 
@@ -90,4 +103,4 @@ Terminal 3:
 ## Notes
 
 - All code is in the `src/peer/` directory.
-- Config files are in the `config/` directory (not yet being used)
+- Config files are in the `config/` directory (not yet being used, DO NOT SUBMIT CONFIG)
