@@ -1,5 +1,7 @@
 package peer;
 
+import utils.Logger;
+
 import java.io.OutputStream;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -19,11 +21,13 @@ public class UploadManager implements Runnable {
     private Map<Integer, Boolean> interestedStatus = new HashMap<>();
     private Map<Integer, OutputStream> peerOutputs = new HashMap<>();
     private volatile boolean shutdown = false;
+    private final int selfPeerId;
 
 
     private final Object lock = new Object();
 
-    public UploadManager(List<Integer> initialPeers) {
+    public UploadManager(List<Integer> initialPeers, int selfPeerId) {
+        this.selfPeerId = selfPeerId;
         for (Integer peerId : initialPeers) {
             chokeStatus.put(peerId, true);
             interestedStatus.put(peerId, false);
@@ -123,6 +127,7 @@ public class UploadManager implements Runnable {
                             os.flush();
                             chokeStatus.put(peerId, false);
                             System.out.println("Unchoked peer " + peerId);
+                            Logger.log("Unchoked peer " + peerId, selfPeerId);
                         }
                     } else {
                         if (!choked) {
@@ -131,12 +136,14 @@ public class UploadManager implements Runnable {
                             os.flush();
                             chokeStatus.put(peerId, true);
                             System.out.println("Choked peer " + peerId);
+                            Logger.log("Choked peer " + peerId, selfPeerId);
                         }
                     }
                 } catch (Exception e) {
                     String msg = e.getMessage() != null ? e.getMessage() : "";
                     if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
                         System.out.println("Failed to send choke/unchoke to peer " + peerId + ": " + msg);
+                        Logger.log("Failed to send choke/unchoke to peer " + peerId + ": " + msg, selfPeerId);
                     }
                 }
             }
@@ -156,6 +163,7 @@ public class UploadManager implements Runnable {
         if (!candidates.isEmpty()) {
             optimisticNeighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
             System.out.println("Optimistically unchoking peer " + optimisticNeighbor);
+            Logger.log("Optimistically unchoking peer " + optimisticNeighbor, selfPeerId);
         }
     }
 
@@ -170,6 +178,7 @@ public class UploadManager implements Runnable {
                     String msg = e.getMessage() != null ? e.getMessage() : "";
                     if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
                         System.out.println("Failed to send HAVE message: " + msg);
+                        Logger.log("Failed to send HAVE message: " + msg, selfPeerId);
                     }
                 }
             }
@@ -191,6 +200,7 @@ public class UploadManager implements Runnable {
         }
         if (allComplete) {
             System.out.println("All peers completed. Shutting down.");
+            Logger.log("All peers completed. Shutting down.", selfPeerId);
             shutdown = true;
             synchronized (this) {
                 notifyAll(); // Wake up any waiting threads

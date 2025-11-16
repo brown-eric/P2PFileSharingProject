@@ -23,7 +23,7 @@ public class PeerProcess {
         this.port = port;
         this.knownPeers = knownPeers;
         this.peerState = peerState;
-        this.uploadManager = new UploadManager(new ArrayList<>(knownPeers));
+        this.uploadManager = new UploadManager(new ArrayList<>(knownPeers), peerId);
         this.threadPool = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
     }
 

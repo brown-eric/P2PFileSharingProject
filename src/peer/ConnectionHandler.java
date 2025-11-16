@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.Map;
+import utils.Logger;
 
 public class ConnectionHandler implements Runnable {
 
@@ -46,6 +47,7 @@ public class ConnectionHandler implements Runnable {
                 throw new Exception("Failed handshake length");
             HandshakeMessage hsIn = HandshakeMessage.fromBytes(hsBuf);
             remotePeerId = hsIn.getPeerId();
+            Logger.log("Connected to peer " + remotePeerId, selfPeerId);
             System.out.println("[Peer " + selfPeerId + "] Connected to peer " + remotePeerId);
 
             // Exchange bitfield
@@ -76,6 +78,7 @@ public class ConnectionHandler implements Runnable {
                 // Telling other peers if it's already complete
                 os.write(new PeerCompletedMessage(selfPeerId).toBytes());
                 os.flush();
+                Logger.log("Informed peer " + remotePeerId + " of seeder status",  selfPeerId);
                 System.out.println("[Peer " + selfPeerId + "] Informed peer " + remotePeerId + " of seeder status.");
             }
 
@@ -147,12 +150,15 @@ public class ConnectionHandler implements Runnable {
 
                                 if (peerState.verifyFileHash()) {
                                     System.out.println("[Peer " + selfPeerId + "] File integrity verified.");
+                                    Logger.log("File integrity verified", selfPeerId);
                                 } else {
                                     System.out.println("[Peer " + selfPeerId + "] File integrity verification failed!");
+                                    Logger.log("File integrity verification failed", selfPeerId);
                                 }
 
                                 // uploadManager.updatePeerCompletion(selfPeerId, true);
                                 System.out.println("[Peer " + selfPeerId + "] Marking self complete and broadcasting...");
+                                Logger.log("Marking self complete and broadcasting...", selfPeerId);
                                 uploadManager.updatePeerCompletion(selfPeerId, true);
                                 uploadManager.broadcastPeerCompleted(selfPeerId);
                                 // System.out.println("[Peer " + selfPeerId + "] Peer completion map: " + uploadManager.getPeerCompletionMap());
@@ -162,6 +168,7 @@ public class ConnectionHandler implements Runnable {
 
                             } catch (Exception e) {
                                 System.err.println("[Peer " + selfPeerId + "] Exception during completion: " + e.getMessage());
+                                Logger.log("Exception during completion: " + e.getMessage(), selfPeerId);
                                 e.printStackTrace();
                             }
                         } else if (!complete1) {
@@ -196,7 +203,9 @@ public class ConnectionHandler implements Runnable {
                     case PeerCompletedMessage.TYPE:
                         PeerCompletedMessage pcm = PeerCompletedMessage.fromBytes(payload);
                         int completedPeerId = pcm.getPeerId();
+
                         System.out.println("[Peer " + selfPeerId + "] Received PeerCompletedMessage: " + completedPeerId);
+                        Logger.log("Received PeerCompletedMessage: " + completedPeerId,  selfPeerId);
                         // System.out.println("[Peer " + selfPeerId + "] Peer completion map BEFORE: " + uploadManager.getPeerCompletionMap());
                         uploadManager.updatePeerCompletion(completedPeerId, true);
                         // System.out.println("[Peer " + selfPeerId + "] Peer completion map AFTER: " + uploadManager.getPeerCompletionMap());
@@ -210,6 +219,7 @@ public class ConnectionHandler implements Runnable {
             // Only print unexpected errors, ignore normal socket closure/reset
             if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
                 System.err.println("[Peer " + selfPeerId + "] Exception: " + msg);
+                Logger.log("Unexpected Exception: " + msg, selfPeerId);
                 e.printStackTrace();
             }
         } finally {
