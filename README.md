@@ -85,8 +85,7 @@ Terminal 3:
 
 ## TODO
 
-- Implement logging mechanics for all events: connection made/received, preferred neighbor changes, optimistic unchoke updates, choke/unchoke, HAVE/interested/not interested/PIECE messages, completion.
-- Include timestamps on logs mentioned above.
+- Reading and usage of Config files.
 - Thorough testing for larger files.
 - Read project description docs for anything else.
 
