@@ -16,12 +16,14 @@ public class ConnectionHandler implements Runnable {
     private UploadManager uploadManager;
     private byte[] remoteBitfield = null;
     private boolean completionChecked = false;
+    private boolean isInitiator;
 
-    public ConnectionHandler(Socket socket, int selfPeerId, PeerState peerState, UploadManager uploadManager) {
+    public ConnectionHandler(Socket socket, int selfPeerId, PeerState peerState, UploadManager uploadManager, boolean isInitiator) {
         this.socket = socket;
         this.selfPeerId = selfPeerId;
         this.peerState = peerState;
         this.uploadManager = uploadManager;
+        this.isInitiator = isInitiator;
     }
 
     private int readFully(InputStream is, byte[] buffer) throws Exception {
@@ -47,7 +49,14 @@ public class ConnectionHandler implements Runnable {
                 throw new Exception("Failed handshake length");
             HandshakeMessage hsIn = HandshakeMessage.fromBytes(hsBuf);
             remotePeerId = hsIn.getPeerId();
-            Logger.log("Connected to peer " + remotePeerId, selfPeerId);
+
+            if (isInitiator) {
+                Logger.log("Peer " + selfPeerId + " makes a connection to Peer " + remotePeerId + ".", selfPeerId);
+            }
+            else {
+                Logger.log("Peer " + selfPeerId + " is connected from Peer " + remotePeerId + ".", selfPeerId);
+            }
+
             System.out.println("[Peer " + selfPeerId + "] Connected to peer " + remotePeerId);
 
             // Exchange bitfield
@@ -78,7 +87,6 @@ public class ConnectionHandler implements Runnable {
                 // Telling other peers if it's already complete
                 os.write(new PeerCompletedMessage(selfPeerId).toBytes());
                 os.flush();
-                Logger.log("Informed peer " + remotePeerId + " of seeder status",  selfPeerId);
                 System.out.println("[Peer " + selfPeerId + "] Informed peer " + remotePeerId + " of seeder status.");
             }
 
@@ -101,10 +109,12 @@ public class ConnectionHandler implements Runnable {
                 switch (msgType) {
                     case ChokeMessage.TYPE:
                         uploadManager.setChoked(remotePeerId, true);
+                        Logger.log("Peer " + selfPeerId + " is choked by " + remotePeerId + ".", selfPeerId);
                         break;
 
                     case UnchokeMessage.TYPE:
                         uploadManager.setChoked(remotePeerId, false);
+                        Logger.log("Peer " + selfPeerId + " is unchoked by " + remotePeerId + ".", selfPeerId);
 
                         if (!completionChecked) {
                             boolean[] myPieces2 = peerState.getPieces();
@@ -121,9 +131,11 @@ public class ConnectionHandler implements Runnable {
 
                     case InterestedMessage.TYPE:
                         uploadManager.setInterested(remotePeerId, true);
+                        Logger.log("Peer " + selfPeerId + " received the 'interested' message from " + remotePeerId + ".", selfPeerId);
                         break;
                     case NotInterestedMessage.TYPE:
                         uploadManager.setInterested(remotePeerId, false);
+                        Logger.log("Peer " + selfPeerId + " received the 'not interested' message from " + remotePeerId + ".", selfPeerId);
                         break;
                     case RequestMessage.TYPE:
                         if (!uploadManager.isChoked(remotePeerId)) {
@@ -140,6 +152,8 @@ public class ConnectionHandler implements Runnable {
                         peerState.storePiece(pieceMsg.getPieceIndex(), pieceMsg.getBlock());
                         uploadManager.broadcastHave(pieceMsg.getPieceIndex());
 
+                        Logger.log("Peer " + selfPeerId + " has downloaded the piece " + pieceMsg.getPieceIndex() + " from " + remotePeerId + ".", selfPeerId);
+
                         boolean complete1 = peerState.isComplete();
 
                         if (complete1 && !completionChecked) {
@@ -150,15 +164,13 @@ public class ConnectionHandler implements Runnable {
 
                                 if (peerState.verifyFileHash()) {
                                     System.out.println("[Peer " + selfPeerId + "] File integrity verified.");
-                                    Logger.log("File integrity verified", selfPeerId);
                                 } else {
                                     System.out.println("[Peer " + selfPeerId + "] File integrity verification failed!");
-                                    Logger.log("File integrity verification failed", selfPeerId);
                                 }
 
                                 // uploadManager.updatePeerCompletion(selfPeerId, true);
                                 System.out.println("[Peer " + selfPeerId + "] Marking self complete and broadcasting...");
-                                Logger.log("Marking self complete and broadcasting...", selfPeerId);
+                                Logger.log("Peer " + selfPeerId + " has downloaded the complete file.", selfPeerId);
                                 uploadManager.updatePeerCompletion(selfPeerId, true);
                                 uploadManager.broadcastPeerCompleted(selfPeerId);
                                 // System.out.println("[Peer " + selfPeerId + "] Peer completion map: " + uploadManager.getPeerCompletionMap());
@@ -168,7 +180,7 @@ public class ConnectionHandler implements Runnable {
 
                             } catch (Exception e) {
                                 System.err.println("[Peer " + selfPeerId + "] Exception during completion: " + e.getMessage());
-                                Logger.log("Exception during completion: " + e.getMessage(), selfPeerId);
+                                //Logger.log("Exception during completion: " + e.getMessage(), selfPeerId);
                                 e.printStackTrace();
                             }
                         } else if (!complete1) {
@@ -187,6 +199,7 @@ public class ConnectionHandler implements Runnable {
                     case HaveMessage.TYPE:
                         HaveMessage recvHave = HaveMessage.fromBytes(payload);
                         int haveIndex = recvHave.getPieceIndex();
+                        Logger.log("Peer " + selfPeerId + " received the 'have' message from " + remotePeerId + " for the piece " + haveIndex + ".", selfPeerId);
 
                         if (remoteBitfield == null) {
                             remoteBitfield = new byte[(peerState.getPieces().length + 7) / 8];
@@ -205,12 +218,11 @@ public class ConnectionHandler implements Runnable {
                         int completedPeerId = pcm.getPeerId();
 
                         System.out.println("[Peer " + selfPeerId + "] Received PeerCompletedMessage: " + completedPeerId);
-                        Logger.log("Received PeerCompletedMessage: " + completedPeerId,  selfPeerId);
+                        //Logger.log("Received PeerCompletedMessage: " + completedPeerId,  selfPeerId);
                         // System.out.println("[Peer " + selfPeerId + "] Peer completion map BEFORE: " + uploadManager.getPeerCompletionMap());
                         uploadManager.updatePeerCompletion(completedPeerId, true);
                         // System.out.println("[Peer " + selfPeerId + "] Peer completion map AFTER: " + uploadManager.getPeerCompletionMap());
                         break;
-
                 }
             }
         }
@@ -219,7 +231,7 @@ public class ConnectionHandler implements Runnable {
             // Only print unexpected errors, ignore normal socket closure/reset
             if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
                 System.err.println("[Peer " + selfPeerId + "] Exception: " + msg);
-                Logger.log("Unexpected Exception: " + msg, selfPeerId);
+                //Logger.log("Unexpected Exception: " + msg, selfPeerId);
                 e.printStackTrace();
             }
         } finally {

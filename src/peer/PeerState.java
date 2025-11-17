@@ -75,6 +75,7 @@ public class PeerState {
     }
 
     private final String expectedFileHash = "D7C1822574DFC87DC4A70E47BBEEFC3F15A9EF5B902794084B06DF507713E5DC"; // precomputed for thefile
+    //private final String expectedFileHash = "987c7cb3bf013388cc3fe6aa3094ef954b5616e682842ecdfcb85670d8b1087a";
 
     public boolean verifyFileHash() {
         try {

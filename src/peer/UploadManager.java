@@ -127,7 +127,6 @@ public class UploadManager implements Runnable {
                             os.flush();
                             chokeStatus.put(peerId, false);
                             System.out.println("Unchoked peer " + peerId);
-                            Logger.log("Unchoked peer " + peerId, selfPeerId);
                         }
                     } else {
                         if (!choked) {
@@ -136,18 +135,25 @@ public class UploadManager implements Runnable {
                             os.flush();
                             chokeStatus.put(peerId, true);
                             System.out.println("Choked peer " + peerId);
-                            Logger.log("Choked peer " + peerId, selfPeerId);
                         }
                     }
                 } catch (Exception e) {
                     String msg = e.getMessage() != null ? e.getMessage() : "";
                     if (!msg.contains("Socket closed") && !msg.contains("Connection reset")) {
                         System.out.println("Failed to send choke/unchoke to peer " + peerId + ": " + msg);
-                        Logger.log("Failed to send choke/unchoke to peer " + peerId + ": " + msg, selfPeerId);
+                        //Logger.log("Failed to send choke/unchoke to peer " + peerId + ": " + msg, selfPeerId);
                     }
                 }
             }
+            boolean changed = !preferredNeighbors.equals(newPreferred);
             preferredNeighbors = newPreferred;
+
+            if (changed) {
+                String list = newPreferred.stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(", "));
+                Logger.log("Peer " + selfPeerId + " has the preferred neighbors [" + list + "].", selfPeerId);
+            }
         }
     }
 
@@ -163,7 +169,7 @@ public class UploadManager implements Runnable {
         if (!candidates.isEmpty()) {
             optimisticNeighbor = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
             System.out.println("Optimistically unchoking peer " + optimisticNeighbor);
-            Logger.log("Optimistically unchoking peer " + optimisticNeighbor, selfPeerId);
+            Logger.log(selfPeerId + " has the optimistically unchoked neighbor " + optimisticNeighbor + ".", selfPeerId);
         }
     }
 

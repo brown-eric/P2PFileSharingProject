@@ -1,5 +1,7 @@
 package peer;
 
+import utils.Logger;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -34,6 +36,7 @@ public class PeerProcess {
         // Start server socket to accept incoming connections
         ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("Peer " + peerId + " listening on port " + port);
+        //Logger.log("Peer " + peerId + " listening on port " + port, peerId);
 
         // Start background thread to accept incoming peers
         threadPool.submit(() -> {
@@ -41,11 +44,12 @@ public class PeerProcess {
                 while (!Thread.currentThread().isInterrupted()) {
                     Socket socket = serverSocket.accept();
                     // For incoming connections, create a ConnectionHandler with uploadManager
-                    ConnectionHandler handler = new ConnectionHandler(socket, peerId, peerState, uploadManager);
+                    ConnectionHandler handler = new ConnectionHandler(socket, peerId, peerState, uploadManager, false);
                     threadPool.submit(handler);
                 }
             } catch (IOException e) {
                 System.out.println("Server socket closed or error: " + e.getMessage());
+                //Logger.log("Server socket closed or error: " + e.getMessage(), peerId);
             }
         });
 
@@ -56,7 +60,7 @@ public class PeerProcess {
                 int remotePort = port + (remotePeerId - peerId);
                 try {
                     Socket socket = new Socket("localhost", remotePort);
-                    ConnectionHandler handler = new ConnectionHandler(socket, peerId, peerState, uploadManager);
+                    ConnectionHandler handler = new ConnectionHandler(socket, peerId, peerState, uploadManager, true);
                     threadPool.submit(handler);
                 } catch (IOException e) {
                     System.out.println("Failed to connect to peer " + remotePeerId + ": " + e.getMessage());

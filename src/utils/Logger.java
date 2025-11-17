@@ -16,7 +16,7 @@ public class Logger {
 
         String path = "logs/log_peer_" + peerId + ".log";
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(path, true))) {
-            writer.write("[" + formattedTimestamp + "] " + message);
+            writer.write("[" + formattedTimestamp + "]: " + message);
             writer.newLine();
         }
         catch (IOException e) {
