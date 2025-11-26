@@ -1,6 +1,7 @@
 package peer;
 
 import utils.Logger;
+import utils.ConfigReader;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +37,6 @@ public class PeerProcess {
         // Start server socket to accept incoming connections
         ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("Peer " + peerId + " listening on port " + port);
-        //Logger.log("Peer " + peerId + " listening on port " + port, peerId);
 
         // Start background thread to accept incoming peers
         threadPool.submit(() -> {
@@ -49,7 +49,6 @@ public class PeerProcess {
                 }
             } catch (IOException e) {
                 System.out.println("Server socket closed or error: " + e.getMessage());
-                //Logger.log("Server socket closed or error: " + e.getMessage(), peerId);
             }
         });
 
@@ -81,29 +80,24 @@ public class PeerProcess {
 
 
     public static void main(String[] args) {
-        if (args.length < 3) {
+
+        if (args.length != 1) {
             System.out.println("Usage: java peer.PeerProcess <peerId> <port> <commaSeparatedKnownPeers>");
             return;
         }
 
         int peerId = Integer.parseInt(args[0]);
-        int port = Integer.parseInt(args[1]);
-        String[] peerStrings = args[2].split(",");
-        List<Integer> knownPeers = new ArrayList<>();
-        for (String s : peerStrings) {
-            knownPeers.add(Integer.parseInt(s));
-        }
 
-        // Example: initialize PeerState, all pieces missing except peer 1001
-        // Using hard coded values to test
-        boolean hasFullFile = (peerId == 1001); // ONLY 1001 starts with all pieces
-        int pieceSize = 16384;
-        String fileName = "thefile";
-        long fileBytes = new File("peer_1001/thefile").length();
-        int numPieces = (int) Math.ceil((double) fileBytes / pieceSize);
+        ConfigReader cfg = new ConfigReader(
+                "config/Common.cfg",
+                "config/PeerInfo.cfg",
+                peerId
+        );
 
-        PeerState peerState = new PeerState(numPieces, hasFullFile, peerId, pieceSize, fileName);
+        int port = cfg.getPort();
+        List<Integer> knownPeers = cfg.getKnownPeers();
 
+        PeerState peerState = cfg.buildPeerState();
         PeerProcess peerProcess = new PeerProcess(peerId, port, knownPeers, peerState);
         peerProcess.announceIfSeeder();
         try {

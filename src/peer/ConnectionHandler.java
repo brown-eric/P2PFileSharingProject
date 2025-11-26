@@ -151,8 +151,7 @@ public class ConnectionHandler implements Runnable {
                         PieceMessage pieceMsg = PieceMessage.fromBytes(payload);
                         peerState.storePiece(pieceMsg.getPieceIndex(), pieceMsg.getBlock());
                         uploadManager.broadcastHave(pieceMsg.getPieceIndex());
-
-                        Logger.log("Peer " + selfPeerId + " has downloaded the piece " + pieceMsg.getPieceIndex() + " from " + remotePeerId + ".", selfPeerId);
+                        Logger.log("Peer " + selfPeerId + " has downloaded the piece " + pieceMsg.getPieceIndex() + " from " + remotePeerId + ". Now the number of pieces it has is " + peerState.getNumberOfPiecesOwned() + ".", selfPeerId);
 
                         boolean complete1 = peerState.isComplete();
 
@@ -173,14 +172,13 @@ public class ConnectionHandler implements Runnable {
                                 Logger.log("Peer " + selfPeerId + " has downloaded the complete file.", selfPeerId);
                                 uploadManager.updatePeerCompletion(selfPeerId, true);
                                 uploadManager.broadcastPeerCompleted(selfPeerId);
-                                // System.out.println("[Peer " + selfPeerId + "] Peer completion map: " + uploadManager.getPeerCompletionMap());
+                                /*
                                 try {
                                     Thread.sleep(1000); // 1 second
                                 } catch (InterruptedException ignore) {}
-
+                                */
                             } catch (Exception e) {
                                 System.err.println("[Peer " + selfPeerId + "] Exception during completion: " + e.getMessage());
-                                //Logger.log("Exception during completion: " + e.getMessage(), selfPeerId);
                                 e.printStackTrace();
                             }
                         } else if (!complete1) {

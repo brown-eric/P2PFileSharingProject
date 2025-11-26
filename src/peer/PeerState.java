@@ -99,4 +99,13 @@ public class PeerState {
             return false;
         }
     }
+
+    public int getNumberOfPiecesOwned() {
+        int count = 0;
+        for (boolean hasPiece : pieces) {  // assuming you have boolean[] pieces
+            if (hasPiece) count++;
+        }
+        return count;
+    }
+
 }
