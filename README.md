@@ -43,9 +43,9 @@ This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing pr
 
 Open a terminal in the project root and run:
 
-`javac -d out src/peer/*.java`
+`javac -d out src/peer/*.java src/utils/*.java`
 
-This compiles all Java files in `src/peer/` and puts the `.class` files in the `out/` directory.
+This compiles all Java files in `src/peer/` and `src/utils/` and puts the `.class` files in the `out/` directory.
 
 [//]: # (###  **Required Config Files**)
 
@@ -59,18 +59,18 @@ This compiles all Java files in `src/peer/` and puts the `.class` files in the `
 ### Running Peers
 
 Each peer runs in its own terminal window. The format is:
-`java -cp out peer.PeerProcess <peerId> <port> <comma-separated-peer-IDs>`
+`java -cp out peer.PeerProcess <peerId>`
 
 **Example for 3 peers:**
 
 Terminal 1:
-`java -cp out peer.PeerProcess 1001 6008 1001,1002,1003`
+`java -cp out peer.PeerProcess 1001`
 
 Terminal 2:
-`java -cp out peer.PeerProcess 1002 6009 1001,1002,1003`
+`java -cp out peer.PeerProcess 1002`
 
 Terminal 3:
-`java -cp out peer.PeerProcess 1003 6010 1001,1002,1003`
+`java -cp out peer.PeerProcess 1003`
 
 ---
 
@@ -85,7 +85,6 @@ Terminal 3:
 
 ## TODO
 
-- Reading and usage of Config files.
 - Thorough testing for larger files.
 - Read project description docs for anything else.
 
@@ -101,5 +100,5 @@ Terminal 3:
 
 ## Notes
 
-- All code is in the `src/peer/` directory.
+- All code is in the `src/peer/` and `src/utils/` directories.
 - Config files are in the `config/` directory (not yet being used, DO NOT SUBMIT CONFIG)
