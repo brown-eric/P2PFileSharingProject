@@ -137,4 +137,4 @@ Terminal 3:
 ## Notes
 
 - All code is in the `src/peer/` and `src/utils/` directories.
-- Config files are in the `config/` directory (not yet being used, DO NOT SUBMIT CONFIG)
+- Config files are in the `config/` directory (DO NOT SUBMIT CONFIG)
