@@ -12,6 +12,7 @@ This project implements a BitTorrent-inspired peer-to-peer (P2P) file sharing pr
 - [Features](#features)
 - [How to Build and Run](#how-to-build-and-run)
 - [How the Protocol Works (So Far)](#how-it-works)
+- [File Structure](#file-structure)
 - [TODO / Future Improvements](#todo)
 - [Team](#team)
 
@@ -80,6 +81,41 @@ Terminal 3:
 - When a piece is received, it is stored and the next missing piece is requested.
 - Peers request missing pieces, receive and store pieces, send HAVE messages for new pieces, and write pieces to disk.
 - Completion status is propagated; when all peers are complete, all processes shut down.
+
+---
+
+## File Structure
+
+- src
+  - peer
+    - BitfieldMessage
+    - ChokeMessage
+    - ConnectionHandler
+    - HandshakeMessage
+    - HaveMessage
+    - InterestedMessage
+    - Message
+    - NotInterestedMessage
+    - PeerCompletedMessage
+    - PeerProcess
+    - PeerState
+    - PieceMessage
+    - RequestMessage
+    - UnchokeMessage
+    - UploadManager
+  - utils
+    - ConfigReader
+    - Logger
+- peer_####
+  - peer_#### files
+- peer_####
+  - peer_#### files
+- logs
+  - log_peer_####
+  - log_peer_####
+- config
+  - Common.cfg
+  - PeerInfo.cfg
 
 ---
 
