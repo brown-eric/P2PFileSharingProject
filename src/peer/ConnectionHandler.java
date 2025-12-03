@@ -77,6 +77,8 @@ public class ConnectionHandler implements Runnable {
             BitfieldMessage remoteBitfieldMsg = BitfieldMessage.fromBytes(payload);
 
             remoteBitfield = remoteBitfieldMsg.getBitfield();
+            System.out.println("[Peer " + selfPeerId + "] Received bitfield from " + remotePeerId);
+            Logger.log("Peer " + selfPeerId + " received bitfield from Peer " + remotePeerId, selfPeerId);
 
             // Initial interest determination
             updateInterest(os);
