@@ -74,32 +74,6 @@ public class PeerState {
         return array;
     }
 
-    private final String expectedFileHash = "D7C1822574DFC87DC4A70E47BBEEFC3F15A9EF5B902794084B06DF507713E5DC"; // precomputed for thefile
-    //private final String expectedFileHash = "987c7cb3bf013388cc3fe6aa3094ef954b5616e682842ecdfcb85670d8b1087a"; //precomputed for tree.jpg
-
-    public boolean verifyFileHash() {
-        try {
-            byte[] fileBytes = Files.readAllBytes(Paths.get("peer_" + peerId + "/" + fileName));
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] actualHash = digest.digest(fileBytes);
-            StringBuilder sb = new StringBuilder();
-            for (byte b : actualHash) {
-                sb.append(String.format("%02x", b));
-            }
-            String actualHashStr = sb.toString();
-            boolean matches = actualHashStr.equalsIgnoreCase(expectedFileHash);
-            if (matches) {
-                System.out.println("File hash verification passed for " + fileName);
-            } else {
-                System.out.println("File hash verification failed! Expected " + expectedFileHash + " but got " + actualHashStr);
-            }
-            return matches;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
     public int getNumberOfPiecesOwned() {
         int count = 0;
         for (boolean hasPiece : pieces) {  // assuming you have boolean[] pieces

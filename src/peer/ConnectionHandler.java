@@ -161,12 +161,6 @@ public class ConnectionHandler implements Runnable {
                                 os.write(new NotInterestedMessage().toBytes());
                                 os.flush();
 
-                                if (peerState.verifyFileHash()) {
-                                    System.out.println("[Peer " + selfPeerId + "] File integrity verified.");
-                                } else {
-                                    System.out.println("[Peer " + selfPeerId + "] File integrity verification failed!");
-                                }
-
                                 // uploadManager.updatePeerCompletion(selfPeerId, true);
                                 System.out.println("[Peer " + selfPeerId + "] Marking self complete and broadcasting...");
                                 Logger.log("Peer " + selfPeerId + " has downloaded the complete file.", selfPeerId);
